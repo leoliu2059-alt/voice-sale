@@ -8,6 +8,7 @@ struct CloudCall: Codable, Sendable {
     let callGoal: String
     let audioPath: String?
     let status: String
+    let errorMessage: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -16,6 +17,21 @@ struct CloudCall: Codable, Sendable {
         case callGoal = "call_goal"
         case audioPath = "audio_path"
         case status
+        case errorMessage = "error_message"
+    }
+}
+
+enum CloudReviewServiceError: Error, LocalizedError {
+    case processingFailed(String?)
+    case missingReviewResult
+
+    var errorDescription: String? {
+        switch self {
+        case let .processingFailed(message):
+            return message?.isEmpty == false ? message : "云端处理失败，请稍后重试。"
+        case .missingReviewResult:
+            return "云端处理已结束，但尚未返回复盘结果。"
+        }
     }
 }
 
@@ -93,145 +109,44 @@ final class CloudReviewService: @unchecked Sendable {
 
         try await api.uploadObject(bucket: "call-audio", path: objectPath, fileURL: fileURL, contentType: contentType, accessToken: accessToken)
 
-        struct Patch: Codable {
-            let audioPath: String
-            let status: String
-            enum CodingKeys: String, CodingKey {
-                case audioPath = "audio_path"
-                case status
-            }
-        }
-
-        try await api.updateRow("calls", match: ["id": callId], patch: Patch(audioPath: objectPath, status: "uploaded"), accessToken: accessToken)
         return objectPath
     }
 
-    func persistReviewResult(callId: String, record: ReviewRecord, userId: String, accessToken: String) async throws {
-        struct InsertJob: Codable {
+    func submitProcessing(callId: String, audioPath: String, accessToken: String) async throws {
+        struct Request: Codable {
             let callId: String
-            let userId: String
-            let jobType: String
-            let status: String
-
-            enum CodingKeys: String, CodingKey {
-                case callId = "call_id"
-                case userId = "user_id"
-                case jobType = "job_type"
-                case status
-            }
+            let audioPath: String
         }
 
-        _ = try await api.insertRow(
-            "analysis_jobs",
-            row: [
-                InsertJob(callId: callId, userId: userId, jobType: "transcription", status: "completed"),
-                InsertJob(callId: callId, userId: userId, jobType: "review_analysis", status: "completed"),
-            ],
+        _ = try await api.invokeFunction(
+            "process-sales-call",
+            body: Request(callId: callId, audioPath: audioPath),
             accessToken: accessToken
         )
+    }
 
-        struct InsertTranscriptSegment: Codable {
-            let callId: String
-            let startMS: Int
-            let endMS: Int
-            let speaker: String
-            let text: String
-            let confidence: Double?
-
-            enum CodingKeys: String, CodingKey {
-                case callId = "call_id"
-                case startMS = "start_ms"
-                case endMS = "end_ms"
-                case speaker
-                case text
-                case confidence
-            }
+    func fetchCall(callId: String, accessToken: String) async throws -> CloudCall {
+        let data = try await api.selectRows("calls", match: ["id": callId], accessToken: accessToken)
+        guard let call = try JSONDecoder().decode([CloudCall].self, from: data).first else {
+            throw SupabaseRESTError.invalidResponse
         }
+        return call
+    }
 
-        let segments = record.result.transcript.map {
-            InsertTranscriptSegment(callId: callId, startMS: $0.startMS, endMS: $0.endMS, speaker: $0.speaker, text: $0.text, confidence: $0.confidence)
-        }
-        if !segments.isEmpty {
-            _ = try await api.insertRow("transcript_segments", row: segments, accessToken: accessToken)
-        }
-
-        struct InsertReviewResult: Codable {
-            let callId: String
-            let persona: Persona
-            let decisiveMisses: [DecisiveMiss]
-            let signals: [Signal]
-            let nextCallTalktrack: NextCallTalktrack
+    func fetchReviewResult(callId: String, accessToken: String) async throws -> ReviewResult {
+        struct ReviewResultRow: Decodable {
             let fullResult: ReviewResult
 
             enum CodingKeys: String, CodingKey {
-                case callId = "call_id"
-                case persona
-                case decisiveMisses = "decisive_misses"
-                case signals
-                case nextCallTalktrack = "next_call_talktrack"
                 case fullResult = "full_result"
             }
         }
 
-        struct ReviewResultRow: Decodable {
-            let id: String
+        let data = try await api.selectRows("review_results", match: ["call_id": callId], accessToken: accessToken)
+        guard let row = try JSONDecoder().decode([ReviewResultRow].self, from: data).first else {
+            throw CloudReviewServiceError.missingReviewResult
         }
-
-        let reviewRow = InsertReviewResult(
-            callId: callId,
-            persona: record.result.persona,
-            decisiveMisses: record.result.decisiveMisses,
-            signals: record.result.signals,
-            nextCallTalktrack: record.result.nextCallTalktrack,
-            fullResult: record.result
-        )
-
-        let reviewData = try await api.insertRow("review_results", row: reviewRow, accessToken: accessToken)
-        let insertedReview = try JSONDecoder().decode([ReviewResultRow].self, from: reviewData).first
-
-        struct InsertEvidenceClip: Codable {
-            let callId: String
-            let reviewResultId: String?
-            let startMS: Int
-            let endMS: Int
-            let quote: String
-            let label: String
-
-            enum CodingKeys: String, CodingKey {
-                case callId = "call_id"
-                case reviewResultId = "review_result_id"
-                case startMS = "start_ms"
-                case endMS = "end_ms"
-                case quote
-                case label
-            }
-        }
-
-        let reviewResultId = insertedReview?.id
-        var clips: [InsertEvidenceClip] = []
-
-        for evidence in record.result.persona.evidenceRefs {
-            clips.append(.init(callId: callId, reviewResultId: reviewResultId, startMS: evidence.startMS, endMS: evidence.endMS, quote: evidence.quote, label: "persona"))
-        }
-
-        for signal in record.result.signals {
-            for evidence in signal.evidence {
-                clips.append(.init(callId: callId, reviewResultId: reviewResultId, startMS: evidence.startMS, endMS: evidence.endMS, quote: evidence.quote, label: "signal:\(signal.capability)"))
-            }
-        }
-
-        for miss in record.result.decisiveMisses {
-            clips.append(.init(callId: callId, reviewResultId: reviewResultId, startMS: miss.startMS, endMS: miss.endMS, quote: miss.customerQuote, label: "miss:\(miss.capability)"))
-        }
-
-        if !clips.isEmpty {
-            _ = try await api.insertRow("evidence_clips", row: clips, accessToken: accessToken)
-        }
-
-        struct CallPatch: Codable {
-            let status: String
-        }
-        try await api.updateRow("calls", match: ["id": callId], patch: CallPatch(status: "completed"), accessToken: accessToken)
+        return row.fullResult
     }
 
     private func contentTypeForFile(_ url: URL) -> String {

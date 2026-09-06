@@ -200,6 +200,23 @@ final class SupabaseREST: @unchecked Sendable {
         ])
     }
 
+    /// Invokes an authenticated Edge Function. The caller's JWT is forwarded so
+    /// the function can enforce ownership before touching private audio.
+    func invokeFunction<Body: Encodable>(_ name: String, body: Body, accessToken: String) async throws -> Data {
+        let url = baseURL.appendingPathComponent("functions/v1/\(name)")
+        return try await rawRequest(url: url, method: "POST", bearerToken: accessToken, body: body, extraHeaders: [
+            "Content-Type": "application/json",
+        ])
+    }
+
+    /// Reads rows through PostgREST using the current user's RLS policies.
+    func selectRows(_ table: String, match: [String: String], accessToken: String) async throws -> Data {
+        var components = URLComponents(url: baseURL.appendingPathComponent("rest/v1/\(table)"), resolvingAgainstBaseURL: false)
+        components?.queryItems = match.map { URLQueryItem(name: $0.key, value: "eq.\($0.value)") }
+        guard let url = components?.url else { throw SupabaseRESTError.invalidResponse }
+        return try await rawRequest(url: url, method: "GET", bearerToken: accessToken)
+    }
+
     func uploadObject(bucket: String, path: String, data: Data, contentType: String, accessToken: String) async throws {
         let url = baseURL.appendingPathComponent("storage/v1/object/\(bucket)/\(path)")
         _ = try await rawRequest(url: url, method: "POST", bearerToken: accessToken, bodyData: data, extraHeaders: [

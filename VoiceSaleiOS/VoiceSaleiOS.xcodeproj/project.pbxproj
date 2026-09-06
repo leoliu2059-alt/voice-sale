@@ -38,6 +38,7 @@
 		B20000000000000000000014 /* SupabaseAuthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseAuthStore.swift; sourceTree = "<group>"; };
 		B20000000000000000000015 /* AuthViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViews.swift; sourceTree = "<group>"; };
 		B20000000000000000000016 /* CloudReviewService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudReviewService.swift; sourceTree = "<group>"; };
+		B20000000000000000000017 /* Supabase.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Supabase.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,6 +55,7 @@
 		B40000000000000000000001 = {
 			isa = PBXGroup;
 			children = (
+				B20000000000000000000017 /* Supabase.xcconfig */,
 				B40000000000000000000002 /* VoiceSale */,
 				B40000000000000000000003 /* Products */,
 			);
@@ -292,6 +294,7 @@
 		};
 		B80000000000000000000005 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = B20000000000000000000017 /* Supabase.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -322,6 +325,7 @@
 		};
 		B80000000000000000000006 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = B20000000000000000000017 /* Supabase.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;

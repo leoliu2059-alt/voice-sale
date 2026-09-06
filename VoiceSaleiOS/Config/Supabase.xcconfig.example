@@ -1,0 +1,4 @@
+// Copy this file to Supabase.xcconfig and replace both placeholders.
+// Supabase.xcconfig is intentionally ignored by Git.
+SUPABASE_URL = __REPLACE_ME__
+SUPABASE_ANON_KEY = __REPLACE_ME__

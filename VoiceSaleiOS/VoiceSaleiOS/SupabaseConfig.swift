@@ -7,6 +7,7 @@ enum SupabaseConfig {
         guard
             let raw = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_URL") as? String,
             raw != "__REPLACE_ME__",
+            !raw.hasPrefix("$("),
             let url = URL(string: raw)
         else {
             preconditionFailure("Missing SUPABASE_URL in Info.plist")
@@ -18,6 +19,7 @@ enum SupabaseConfig {
         guard
             let key = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_ANON_KEY") as? String,
             key != "__REPLACE_ME__",
+            !key.hasPrefix("$("),
             !key.isEmpty
         else {
             preconditionFailure("Missing SUPABASE_ANON_KEY in Info.plist")

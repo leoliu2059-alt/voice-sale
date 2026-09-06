@@ -67,10 +67,13 @@ VITE_ENABLE_REAL_AI=false
 
 1. 使用 Xcode 打开 [VoiceSaleiOS.xcodeproj](VoiceSaleiOS/VoiceSaleiOS.xcodeproj)。
 2. 选择 `VoiceSale` target，并在 iOS 17 或更高版本的模拟器或真机上运行。
-3. 为自己的 Supabase 项目配置 `VoiceSaleiOS/VoiceSaleiOS/Info.plist`：
+3. 创建本机 Supabase 配置（该文件已被 Git 忽略）：
 
-   - `SUPABASE_URL`
-   - `SUPABASE_ANON_KEY`
+   ```bash
+   cp VoiceSaleiOS/Config/Supabase.xcconfig.example VoiceSaleiOS/Config/Supabase.xcconfig
+   ```
+
+   在新建文件中填写自己项目的 `SUPABASE_URL` 和 `SUPABASE_ANON_KEY`。请只使用 Supabase 的发布密钥，绝不要填入 `sb_secret_...` 或服务端角色密钥。
 
 4. 在 Supabase Dashboard 的 **Authentication → URL Configuration → Redirect URLs** 中添加：
 
@@ -115,4 +118,3 @@ iOS 的云端模式需要先登录。它会创建通话记录、可选上传音�
 1. 在受保护的后端接入真实转写和分析服务。
 2. 用队列或 Edge Function 执行异步分析任务，并回写 `analysis_jobs`。
 3. 为 Web 端添加账户、云端同步与受控音频上传。
-

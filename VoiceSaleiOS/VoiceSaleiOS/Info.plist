@@ -34,8 +34,8 @@
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>SUPABASE_ANON_KEY</key>
-	<string>sb_publishable_n0zCQGRs94ROC3F3iuTYvA_p_OB_nIp</string>
+	<string>$(SUPABASE_ANON_KEY)</string>
 	<key>SUPABASE_URL</key>
-	<string>https://qdbmqvuvswxwiwqioqkw.supabase.co</string>
+	<string>$(SUPABASE_URL)</string>
 </dict>
 </plist>
